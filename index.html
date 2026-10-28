@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Japan Trip Itinerary - Autumn</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        obsidian: '#0f1115',
+                        sage: '#4A6B55',
+                        'sage-dark': '#3a5443',
+                        terracotta: '#E05A2B',
+                        'terracotta-hover': '#c94d22',
+                    },
+                    fontFamily: {
+                        sans: ['Kanit', 'Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0f1115;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+        
+        html { scroll-behavior: smooth; }
+
+        /* ---------- Map panel ---------- */
+        .mapcol { position: sticky; top: 0; z-index: 30; background: #0f1115; padding: 8px 0; }
+        @media (min-width: 1024px) { .mapcol { top: 16px; align-self: start; padding: 0; } }
+        .mapbox {
+            position: relative; height: 38vh; min-height: 260px;
+            border-radius: 0.75rem; overflow: hidden;
+            border: 1px solid rgba(74,107,85,.5);
+        }
+        @media (min-width: 1024px) { .mapbox { height: calc(100vh - 150px); min-height: 420px; } }
+        #map { position: absolute; inset: 0; background: #0b0f19; }
+        .leaflet-container { font-family: inherit; background: #0b0f19; }
+        .leaflet-popup-content-wrapper { background: #1b2029; color: #e2e8f0; border-radius: 12px; }
+        .leaflet-popup-tip { background: #1b2029; }
+        .leaflet-popup-content { font-size: 13px; line-height: 1.5; margin: 10px 14px; }
+        .leaflet-popup-content a { color: #ff9a6b; }
+        .leaflet-control-attribution { font-size: 9px; background: rgba(15,17,21,.7) !important; color: #8b95a8 !important; }
+        .leaflet-control-attribution a { color: #a9b6cf !important; }
+
+        .maptitle {
+            position: absolute; top: 10px; left: 56px; right: 10px; z-index: 500; pointer-events: none;
+        }
+        .maptitle div {
+            display: inline-block; max-width: 100%;
+            background: rgba(15,17,21,.88); border: 1px solid rgba(74,107,85,.6);
+            border-radius: 12px; padding: 6px 12px; font-size: 13px; font-weight: 500;
+            color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .legend {
+            position: absolute; left: 10px; bottom: 10px; z-index: 500;
+            background: rgba(15,17,21,.88); border: 1px solid rgba(74,107,85,.6);
+            border-radius: 12px; padding: 6px 10px; font-size: 12px;
+            display: flex; gap: 10px; flex-wrap: wrap; max-width: calc(100% - 20px);
+        }
+        .legend span { display: flex; gap: 5px; align-items: center; }
+        .legend s { width: 10px; height: 10px; border-radius: 50%; display: inline-block; text-decoration: none; }
+        .replay {
+            position: absolute; right: 10px; bottom: 10px; z-index: 500; cursor: pointer;
+            background: #E05A2B; color: #fff; border: 0; border-radius: 999px;
+            padding: 7px 14px; font: inherit; font-size: 12px; font-weight: 500;
+            box-shadow: 0 4px 14px rgba(0,0,0,.5);
+        }
+        .replay:hover { background: #c94d22; }
+
+        /* day tabs */
+        .tabs { display: flex; gap: 6px; overflow-x: auto; padding: 0 0 8px; scrollbar-width: thin; scrollbar-color: #4A6B55 transparent; }
+        .tab {
+            flex: 0 0 auto; cursor: pointer; font: inherit; font-size: 13px; font-weight: 500;
+            color: #cbd5e1; background: #171b22; border: 1px solid rgba(74,107,85,.5);
+            border-radius: 999px; padding: 5px 12px; min-width: 44px; white-space: nowrap;
+        }
+        .tab:hover { border-color: #E05A2B; color: #fff; }
+        .tab.on { background: #E05A2B; border-color: #E05A2B; color: #fff; }
+
+        /* markers */
+        .mk {
+            display: grid; place-items: center; width: 34px; height: 34px;
+            border-radius: 50% 50% 50% 8px; transform: rotate(-45deg);
+            box-shadow: 0 4px 14px rgba(0,0,0,.5); border: 2px solid #fff;
+        }
+        .mk i { transform: rotate(45deg); font-style: normal; font-size: 16px; }
+        .mk.sight { background: #ff8a3d; } .mk.hotel { background: #5aa8ff; }
+        .mk.food { background: #ff5d5d; }   .mk.node { background: #a98bff; }
+        .mk.pop { animation: pop .5s cubic-bezier(.3,1.6,.5,1) both; }
+        @keyframes pop { from { scale: 0; } to { scale: 1; } }
+        .mover { font-size: 26px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.7)); }
+
+        /* day cards */
+        .day-card {
+            background: #171b22; border: 1px solid rgba(74,107,85,.45);
+            padding: 1.25rem; border-radius: 1rem; cursor: pointer;
+            display: flex; flex-direction: column; justify-content: space-between;
+            transition: border-color .2s, box-shadow .2s, transform .2s;
+            scroll-margin-top: 48vh;
+        }
+        @media (min-width: 1024px) { .day-card { scroll-margin-top: 16px; } }
+        .day-card:hover { border-color: rgba(224,90,43,.6); }
+        .day-card.active {
+            border-color: #E05A2B; transform: translateX(4px);
+            box-shadow: 0 0 0 1px #E05A2B, 0 10px 25px -5px rgba(0,0,0,.6);
+        }
+        .day-card a { color: #ff9a6b; text-decoration: none; border-bottom: 1px dotted #ff9a6b; }
+        .day-card a:hover { color: #ffc2a3; }
+        .day-num {
+            display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+            background: #4A6B55; color: #fff; font-weight: 600; margin-right: 10px; flex: 0 0 auto;
+        }
+        .day-card.active .day-num { background: #E05A2B; }
+        .day-card .row { display: flex; gap: 8px; }
+        .day-card .row .ic { flex: 0 0 1.5em; text-align: center; }
+
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f1115;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4A6B55;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #E05A2B;
+        }
+    </style>
+</head>
+<body class="antialiased font-sans pb-16">
+
+    <!-- Header -->
+    <header class="bg-sage bg-opacity-20 border-b border-sage border-opacity-30 pt-12 pb-8 px-6 text-center">
+        <h1 class="text-3xl md:text-5xl font-bold text-white mb-3">
+            แผนการเดินทางญี่ปุ่น <span class="text-terracotta">10 วัน</span>
+        </h1>
+        <p class="text-lg text-gray-300 font-light">
+            ฟูจิคิวไฮแลนด์ • ยามานากะโกะ • คามิโคจิ • อาโอโมริ (7 - 16 ตุลาคม)
+        </p>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8">
+        
+        <!-- Summary Section -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <!-- Cost Summary -->
+            <div class="bg-sage bg-opacity-10 border border-sage border-opacity-30 p-6 rounded-2xl card-shadow">
+                <div class="flex items-center mb-4">
+                    <svg class="w-6 h-6 text-terracotta mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <h2 class="text-xl font-semibold text-white">ค่าใช้จ่ายประมาณการ</h2>
+                </div>
+                <p class="text-gray-300 mb-2">รวมทั้งหมด (ต่อท่าน):</p>
+                <p class="text-3xl font-bold text-terracotta mb-2">~234,500 <span class="text-xl font-medium">JPY</span></p>
+                <p class="text-xs text-gray-400">*ไม่รวมตั๋วเครื่องบิน ช้อปปิ้ง และของฝากส่วนตัว</p>
+            </div>
+
+            <!-- Luggage Rules -->
+            <div class="bg-sage bg-opacity-10 border border-sage border-opacity-30 p-6 rounded-2xl card-shadow">
+                <div class="flex items-center mb-4">
+                    <svg class="w-6 h-6 text-terracotta mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                    <h2 class="text-xl font-semibold text-white">กลยุทธ์สัมภาระ (Takkyubin)</h2>
+                </div>
+                <ul class="text-sm text-gray-300 space-y-2 list-disc list-inside">
+                    <li><strong class="text-white">วันที่ 1:</strong> ส่งกระเป๋าใหญ่จากสนามบินโตเกียว ไปรอที่โรงแรมใน อาโอโมริ (พกเป้ 4 วัน)</li>
+                    <li><strong class="text-white">วันที่ 6:</strong> ส่งกระเป๋าใหญ่จากอาโอโมริ ไปรอที่โรงแรมใน โตเกียว (พกเป้ 2 วันที่โทวาดะ)</li>
+                </ul>
+            </div>
+
+            <!-- Tax Refund Rules -->
+            <div class="bg-sage bg-opacity-10 border border-sage border-opacity-30 p-6 rounded-2xl card-shadow">
+                <div class="flex items-center mb-4">
+                    <svg class="w-6 h-6 text-terracotta mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2zM10 8.5a.5.5 0 11-1 0 .5.5 0 011 0zm5 5a.5.5 0 11-1 0 .5.5 0 011 0z"></path></svg>
+                    <h2 class="text-xl font-semibold text-white">การขอ Tax Refund</h2>
+                </div>
+                <ul class="text-sm text-gray-300 space-y-2 list-disc list-inside">
+                    <li>ยอดซื้อขั้นต่ำ <strong>5,000 เยน</strong> (ไม่รวมภาษี) ในร้านที่มีป้าย Tax Free</li>
+                    <li>สินค้าอุปโภคบริโภค (ขนม เครื่องสำอาง) จะถูกซีลถุง <strong class="text-terracotta">ห้ามแกะใช้ในญี่ปุ่นเด็ดขาด</strong></li>
+                    <li>สแกนพาสปอร์ตที่ตู้ศุลกากร (Customs) ที่สนามบินก่อนขึ้นเครื่อง</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Map + Itinerary -->
+        <section class="lg:grid lg:grid-cols-12 lg:gap-6">
+
+            <!-- Map (sticky) -->
+            <div class="mapcol lg:col-span-5 lg:order-2">
+                <div class="tabs" id="tabs" role="tablist" aria-label="เลือกวัน"></div>
+                <div class="mapbox card-shadow">
+                    <div id="map"></div>
+                    <div class="maptitle"><div id="mapTitle">เส้นทางทั้งหมด</div></div>
+                    <div class="legend">
+                        <span><s style="background:#a98bff"></s>จุดเดินทาง</span>
+                        <span><s style="background:#ff8a3d"></s>ที่เที่ยว</span>
+                        <span><s style="background:#5aa8ff"></s>ที่พัก</span>
+                        <span><s style="background:#ff5d5d"></s>ร้านอาหาร</span>
+                    </div>
+                    <button class="replay" id="replay" type="button">▶ เล่นเส้นทางซ้ำ</button>
+                </div>
+            </div>
+
+            <!-- Itinerary Cards -->
+            <div class="lg:col-span-7 lg:order-1 mt-6 lg:mt-0">
+            <h2 class="text-2xl font-semibold text-white mb-1 border-l-4 border-terracotta pl-3">รายละเอียดแผนรายวัน</h2>
+            <p class="text-sm text-gray-400 mb-5 pl-4">แตะที่การ์ดหรือแท็บวัน เพื่อดูเส้นทางและสถานที่บนแผนที่</p>
+
+            <div class="grid grid-cols-1 gap-4">
+
+                <!-- Day 1 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 1 (7 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">27,800 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">โตเกียว <span class="mx-1">→</span> ยามานากะโกะ</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> Kaba Bus (รถสะเทินน้ำสะเทินบก), สวนดอกไม้ Hana no Miyako</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> Fuji Marriott Hotel Lake Yamanaka (15,000 เยน/คืน)</p>
+                            <p><strong class="text-white">🍜 ร้านอาหาร:</strong> 
+                                <a href="https://www.google.com/maps/search/?api=1&query=Hoto+Fudo+Higashikoiji" target="_blank" class="text-terracotta hover:underline">Hoto Fudo</a>, 
+                                <a href="https://www.google.com/maps/search/?api=1&query=Sanrokuen+Fujikawaguchiko" target="_blank" class="text-terracotta hover:underline">Sanrokuen</a>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        ค่ารถบัส 5,300 JPY | ค่าอาหาร 5,000 JPY | ค่าส่งกระเป๋า 2,500 JPY 
+                    </div>
+                </div>
+
+                <!-- Day 2 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 2 (8 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">28,500 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">สวนสนุก Fuji-Q Highland</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> Fuji-Q Highland เต็มวัน</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> Fuji Marriott Hotel Lake Yamanaka (15,000 เยน/คืน)</p>
+                            <p><strong class="text-white">🍜 ร้านอาหาร:</strong> 
+                                <a href="https://www.google.com/maps/search/?api=1&query=Genji+Udon+Fujiyoshida" target="_blank" class="text-terracotta hover:underline">Genji Udon</a> (แวะพักเที่ยงทานอุด้ง)
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        ตั๋ว Fuji-Q 7,500 JPY | ค่ารถบัส 1,000 JPY | ค่าอาหาร 5,000 JPY
+                    </div>
+                </div>
+
+                <!-- Day 3 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 3 (9 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">21,000 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">ยามานากะโกะ <span class="mx-1">→</span> มัตสึโมโตะ</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> ปราสาท Matsumoto, ถนนคนเดิน Nawate-dori</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> Matsumoto Hotel Kagetsu (10,000 เยน/คืน)</p>
+                            <p><strong class="text-white">🍜 ร้านอาหาร:</strong> 
+                                <a href="https://www.google.com/maps/search/?api=1&query=Soba-dokoro+Kobayashi+Matsumoto" target="_blank" class="text-terracotta hover:underline">Soba-dokoro Kobayashi</a>,
+                                <a href="https://www.google.com/maps/search/?api=1&query=Matsumoto+Karaage+Center" target="_blank" class="text-terracotta hover:underline">Matsumoto Karaage Center</a>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        ค่ารถไฟ/รถบัส 5,000 JPY | ค่าอาหาร 6,000 JPY
+                    </div>
+                </div>
+
+                <!-- Day 4 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 4 (10 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">20,300 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">สัมผัสธรรมชาติ คามิโคจิ (Kamikochi)</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> เดินเทรล Taisho Pond ถึง สะพาน Kappa Bridge</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> Matsumoto Hotel Kagetsu (10,000 เยน/คืน)</p>
+                            <p><strong class="text-white">🍜 ร้านอาหาร:</strong> 
+                                <a href="https://www.google.com/maps/search/?api=1&query=Gosenjaku+Kitchen+Kamikochi" target="_blank" class="text-terracotta hover:underline">Gosenjaku Kitchen</a>,
+                                <a href="https://www.google.com/maps/search/?api=1&query=Trois+Cinq+Kamikochi" target="_blank" class="text-terracotta hover:underline">Trois Cinq (คาเฟ่)</a>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        ค่ารถ Alpico Line 5,300 JPY | ค่าอาหาร 5,000 JPY
+                    </div>
+                </div>
+
+                <!-- Day 5 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 5 (11 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">44,000 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">มัตสึโมโตะ <span class="mx-1">→</span> อาโอโมริ (เริ่มใช้ JR Pass)</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> นั่งชินคันเซ็น, พิพิธภัณฑ์โคมไฟเนบุตะ (Nebuta Museum)</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> Hotel JAL City Aomori (8,000 เยน/คืน)</p>
+                            <p><strong class="text-white">🍜 ร้านอาหาร:</strong> 
+                                <a href="https://www.google.com/maps/search/?api=1&query=Aji+no+Sapporo+Oonishi+Aomori" target="_blank" class="text-terracotta hover:underline">Aji no Sapporo Oonishi</a> (ราเมนมิโซะแกงกะหรี่นม)
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        เปิดใช้ JR Pass (30,000 JPY) | ค่าอาหาร 6,000 JPY
+                    </div>
+                </div>
+
+                <!-- Day 6 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 6 (12 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">24,500 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">ภูเขา Hakkoda & สะพาน Jogakura</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> นั่งกระเช้า Hakkoda Ropeway, สะพาน Jogakura Ohashi</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> Towadaso (15,000 เยน/คืน)</p>
+                            <p><strong class="text-white">🍜 ร้านอาหาร:</strong> 
+                                <a href="https://www.google.com/maps/search/?api=1&query=Aomori+Gyosai+Center" target="_blank" class="text-terracotta hover:underline">Aomori Gyosai Center</a>,
+                                <a href="https://www.google.com/maps/search/?api=1&query=Sukayu+Onsen+Aomori" target="_blank" class="text-terracotta hover:underline">Sukayu Onsen Soba</a>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        ค่ากระเช้า 2,000 JPY | ค่าส่งกระเป๋า 2,500 JPY | ค่าอาหาร 5,000 JPY
+                    </div>
+                </div>
+
+                <!-- Day 7 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 7 (13 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">21,400 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">ลำธาร Oirase & ทะเลสาบ Towadako</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> เดินเทรลเลียบลำธาร Oirase, ล่องเรือทะเลสาบ Towadako</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> Towadaso (15,000 เยน/คืน)</p>
+                            <p><strong class="text-white">🍜 ร้านอาหาร:</strong> 
+                                <a href="https://www.google.com/maps/search/?api=1&query=Towada+Barayaki+Taishu+Shokudo" target="_blank" class="text-terracotta hover:underline">Towada Barayaki</a>,
+                                <a href="https://www.google.com/maps/search/?api=1&query=Towadako+Marine+Blue" target="_blank" class="text-terracotta hover:underline">Towadako Marine Blue</a>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        ค่าล่องเรือ 1,400 JPY | ค่าอาหาร 5,000 JPY (ใช้บัสฟรีด้วย JR Pass)
+                    </div>
+                </div>
+
+                <!-- Day 8 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 8 (14 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">18,000 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">โทวาดาโกะ <span class="mx-1">→</span> โตเกียว</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> เดินเล่นริมทะเลสาบ, นั่งชินคันเซ็นกลับโตเกียว</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> Shinjuku Prince Hotel (12,000 เยน/คืน)</p>
+                            <p><strong class="text-white">🍜 ร้านอาหาร:</strong> 
+                                <a href="https://www.google.com/maps/search/?api=1&query=JR+House+Towada" target="_blank" class="text-terracotta hover:underline">JR House Towada</a>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        ค่าอาหาร 6,000 JPY (ค่ารถไฟครอบคลุมด้วย JR Pass)
+                    </div>
+                </div>
+
+                <!-- Day 9 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 9 (15 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">23,000 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">Tokyo Free Day</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> เที่ยวและช้อปปิ้งตามอัธยาศัยในโตเกียว</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> Shinjuku Prince Hotel (12,000 เยน/คืน)</p>
+                            <p><strong class="text-white">🍜 ร้านอาหาร:</strong> 
+                                <a href="https://www.google.com/maps/search/?api=1&query=Nikuya+no+Daidokoro+Shinjuku" target="_blank" class="text-terracotta hover:underline">Nikuya no Daidokoro</a>,
+                                <a href="https://www.google.com/maps/search/?api=1&query=Manten+Sushi+Marunouchi" target="_blank" class="text-terracotta hover:underline">Manten Sushi</a>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        ค่าเดินทาง Subway 1,000 JPY | ค่าอาหาร 10,000 JPY
+                    </div>
+                </div>
+
+                <!-- Day 10 -->
+                <div class="day-card">
+                    <div>
+                        <div class="flex justify-between items-start mb-3">
+                            <h3 class="text-xl font-bold text-white">วันที่ 10 (16 ต.ค.)</h3>
+                            <span class="bg-obsidian text-terracotta text-xs font-semibold px-2 py-1 rounded-full">6,000 JPY/ท่าน</span>
+                        </div>
+                        <p class="text-gray-200 font-medium mb-4">เดินทางกลับประเทศไทย</p>
+                        <div class="space-y-3 text-sm text-gray-300">
+                            <p><strong class="text-white">📍 ที่เที่ยว:</strong> เดินทางไปสนามบิน, ซื้อของฝาก Duty Free</p>
+                            <p><strong class="text-white">🏨 ที่พัก:</strong> <span class="italic text-gray-400">ยังไม่มีข้อมูล (เดินทางกลับ)</span></p>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-700 text-xs text-gray-300">
+                        <span class="block mb-1 font-semibold text-white">ค่าใช้จ่าย:</span>
+                        ค่ารถไฟไปสนามบิน 3,000 JPY | ค่าอาหาร 3,000 JPY
+                    </div>
+                </div>
+
+            </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Leaflet JS & Custom Script for Map -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+    (function () {
+        // [ชื่อ, lat, lng, ประเภท, emoji]  — พิกัดโดยประมาณ ใช้ลิงก์ Google Maps ในป๊อปอัปเพื่อตำแหน่งจริง
+        const P = {
+            NRT:  ["สนามบินโตเกียว (นาริตะ)", 35.7720, 140.3930, "node",  "✈️"],
+            KABA: ["Kaba Bus (ทะเลสาบยามานากะ)", 35.4150, 138.8610, "sight", "🚌"],
+            HANA: ["สวนดอกไม้ Hana no Miyako", 35.4127, 138.8613, "sight", "🌸"],
+            MAR:  ["Fuji Marriott Hotel Lake Yamanaka", 35.4170, 138.8700, "hotel", "🏨"],
+            HOTO: ["Hoto Fudo Higashikoiji", 35.5010, 138.7590, "food",  "🍜"],
+            SANR: ["Sanrokuen Fujikawaguchiko", 35.4960, 138.7490, "food", "🍜"],
+            FUJQ: ["Fuji-Q Highland", 35.4879, 138.7807, "sight", "🎢"],
+            GENJ: ["Genji Udon Fujiyoshida", 35.4880, 138.8050, "food", "🍜"],
+            MATS: ["สถานี Matsumoto", 36.2312, 137.9647, "node",  "🚉"],
+            MATC: ["ปราสาท Matsumoto", 36.2386, 137.9689, "sight", "🏯"],
+            NAWA: ["ถนน Nawate-dori", 36.2349, 137.9709, "sight", "🛍️"],
+            KAGE: ["Matsumoto Hotel Kagetsu", 36.2340, 137.9660, "hotel", "🏨"],
+            KOBA: ["Soba-dokoro Kobayashi", 36.2370, 137.9725, "food", "🍜"],
+            KARA: ["Matsumoto Karaage Center", 36.2315, 137.9640, "food", "🍗"],
+            KAMB: ["Kamikochi Bus Terminal", 36.2500, 137.6370, "node", "🚌"],
+            KAPP: ["สะพาน Kappa Bridge", 36.2494, 137.6372, "sight", "🌉"],
+            TAIS: ["Taisho Pond", 36.2680, 137.6340, "sight", "🍁"],
+            GOSE: ["Gosenjaku Kitchen", 36.2497, 137.6360, "food", "🍽️"],
+            TROI: ["Trois Cinq (คาเฟ่)", 36.2560, 137.6370, "food", "☕"],
+            SAOM: ["สถานี Shin-Aomori", 40.8277, 140.7345, "node", "🚅"],
+            NEBU: ["พิพิธภัณฑ์เนบุตะ (Nebuta Warasse)", 40.8294, 140.7361, "sight", "🏮"],
+            JAL:  ["Hotel JAL City Aomori", 40.8230, 140.7420, "hotel", "🏨"],
+            OONI: ["Aji no Sapporo Oonishi", 40.8221, 140.7467, "food", "🍜"],
+            HAKK: ["Hakkoda Ropeway", 40.6578, 140.8567, "sight", "🚠"],
+            JOGA: ["สะพาน Jogakura Ohashi", 40.6396, 140.9057, "sight", "🌉"],
+            GYO:  ["Aomori Gyosai Center", 40.8238, 140.7480, "food", "🐟"],
+            SUKA: ["Sukayu Onsen (โซบะ)", 40.6520, 140.8480, "food", "♨️"],
+            TOWA: ["Towadaso (ที่พักทะเลสาบโทวาดะ)", 40.4225, 140.8875, "hotel", "🏨"],
+            OIRA: ["ลำธาร Oirase", 40.5270, 141.0280, "sight", "🍂"],
+            YASU: ["ทะเลสาบ Towadako (ท่าเรือ Yasumiya)", 40.4310, 140.8830, "sight", "⛴️"],
+            BARA: ["Towada Barayaki", 40.4305, 140.8790, "food", "🥩"],
+            MARI: ["Towadako Marine Blue", 40.4300, 140.8845, "food", "🍽️"],
+            JRH:  ["JR House Towada", 40.4290, 140.8850, "food", "🍙"],
+            TYO:  ["สถานี Tokyo", 35.6810, 139.7670, "node", "🚉"],
+            SHP:  ["Shinjuku Prince Hotel", 35.6945, 139.7023, "hotel", "🏨"],
+            NIKU: ["Nikuya no Daidokoro Shinjuku", 35.6925, 139.7005, "food", "🥩"],
+            MANT: ["Manten Sushi Marunouchi", 35.6820, 139.7640, "food", "🍣"]
+        };
+
+        // route = จุดที่เดินทางผ่านตามลำดับ · extra = สถานที่อื่นของวันนั้น · modes = พาหนะแต่ละช่วง
+        const DAYS = [
+            { n: 1,  t: "โตเกียว → ยามานากะโกะ",  route: ["NRT","KABA","HANA","MAR"], extra: ["HOTO","SANR"], modes: ["🚌","🚌","🚶"] },
+            { n: 2,  t: "สวนสนุก Fuji-Q Highland", route: ["MAR","FUJQ","MAR"],         extra: ["GENJ"],        modes: ["🚌","🚌"] },
+            { n: 3,  t: "ยามานากะโกะ → มัตสึโมโตะ", route: ["MAR","MATS","MATC","NAWA","KAGE"], extra: ["KOBA","KARA"], modes: ["🚆","🚶","🚶","🚶"] },
+            { n: 4,  t: "คามิโคจิ (Kamikochi)",   route: ["KAGE","KAMB","TAIS","KAPP","KAGE"], extra: ["GOSE","TROI"], modes: ["🚌","🥾","🥾","🚌"] },
+            { n: 5,  t: "มัตสึโมโตะ → อาโอโมริ",  route: ["MATS","SAOM","NEBU","JAL"], extra: ["OONI"],        modes: ["🚅","🚃","🚶"] },
+            { n: 6,  t: "Hakkoda & Jogakura → Towada", route: ["JAL","HAKK","JOGA","TOWA"], extra: ["GYO","SUKA"], modes: ["🚌","🚌","🚌"] },
+            { n: 7,  t: "ลำธาร Oirase & ทะเลสาบ Towada", route: ["TOWA","OIRA","YASU","TOWA"], extra: ["BARA","MARI"], modes: ["🚌","🚶","🚌"] },
+            { n: 8,  t: "โทวาดาโกะ → โตเกียว",    route: ["TOWA","SAOM","TYO","SHP"], extra: ["JRH"],         modes: ["🚌","🚅","🚆"] },
+            { n: 9,  t: "Tokyo Free Day",         route: ["SHP","MANT","SHP"],         extra: ["NIKU"],        modes: ["🚇","🚇"] },
+            { n: 10, t: "เดินทางกลับไทย",          route: ["SHP","TYO","NRT"],          extra: [],              modes: ["🚆","🚆"] }
+        ];
+        const ALL = { n: 0, t: "เส้นทางทั้งหมด 7 – 16 ต.ค.", route: ["NRT","MAR","MATS","KAMB","MATS","SAOM","JAL","TOWA","SAOM","TYO","SHP","NRT"],
+                      show: ["NRT","MAR","KAGE","KAMB","JAL","HAKK","TOWA","SHP"],
+                      modes: ["🚌","🚆","🚌","🚌","🚅","🚌","🚌","🚅","🚆","🚇","🚆"] };
+
+        const gm = q => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(q);
+        const $ = s => document.querySelector(s);
+        const $$ = s => [...document.querySelectorAll(s)];
+
+        let map, layer, rafId = null, token = 0, current = 0;
+
+        function initMap() {
+            map = L.map("map", { minZoom: 4, maxZoom: 16, zoomControl: true }).setView([37.5, 139], 5);
+            L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+                { attribution: "Tiles © Esri — Esri, HERE, Garmin, OpenStreetMap contributors", maxZoom: 16 }).addTo(map);
+            L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+                { maxZoom: 16, opacity: 0.9 }).addTo(map);
+            layer = L.layerGroup().addTo(map);
+        }
+
+        function clearLayer() {
+            layer.clearLayers();
+            if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+            token++;
+        }
+
+        function addMarker(id, delay) {
+            const p = P[id];
+            const icon = L.divIcon({
+                className: "",
+                html: `<div class="mk ${p[3]} pop"><i>${p[4]}</i></div>`,
+                iconSize: [34, 34], iconAnchor: [17, 34], popupAnchor: [0, -30]
+            });
+            const m = L.marker([p[1], p[2]], { icon, opacity: 0 });
+            m.bindPopup(`<b>${p[0]}</b><br><a href="${gm(p[0] + " Japan")}" target="_blank" rel="noopener">เปิดใน Google Maps ↗</a><br><small style="color:#8b95a8">ตำแหน่งโดยประมาณ</small>`);
+            const my = token;
+            setTimeout(() => { if (my === token) { m.addTo(layer); m.setOpacity(1); } }, delay);
+        }
+
+        function animateRoute(ids, modes, color) {
+            const pts = ids.map(i => [P[i][1], P[i][2]]);
+            if (pts.length < 2) return;
+            const my = token;
+            const poly = L.polyline([pts[0]], { color, weight: 4, opacity: 0.9, lineCap: "round" }).addTo(layer);
+            const moverIcon = e => L.divIcon({ className: "", html: `<div class="mover">${e}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+            const mover = L.marker(pts[0], { icon: moverIcon(modes[0] || "🚗"), zIndexOffset: 900, interactive: false }).addTo(layer);
+            const lens = [0];
+            for (let i = 1; i < pts.length; i++) lens.push(lens[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+            const total = lens[lens.length - 1] || 1;
+            const dur = Math.min(5000, 1500 + pts.length * 500);
+            const t0 = performance.now();
+            let lastK = -1;
+            (function step(now) {
+                if (my !== token) return;
+                const f = Math.min(1, (now - t0) / dur), d = f * total;
+                let k = 1;
+                while (k < lens.length - 1 && lens[k] < d) k++;
+                const seg = (d - lens[k - 1]) / ((lens[k] - lens[k - 1]) || 1);
+                const a = pts[k - 1], b = pts[k];
+                const here = [a[0] + (b[0] - a[0]) * seg, a[1] + (b[1] - a[1]) * seg];
+                poly.setLatLngs(pts.slice(0, k).concat([here]));
+                mover.setLatLng(here);
+                if (k !== lastK) { mover.setIcon(moverIcon(modes[k - 1] || modes[0] || "🚗")); lastK = k; }
+                if (f < 1) rafId = requestAnimationFrame(step);
+            })(performance.now());
+        }
+
+        function show(n, instant) {
+            current = n;
+            const d = n === 0 ? ALL : DAYS[n - 1];
+            clearLayer();
+            $("#mapTitle").textContent = n === 0 ? d.t : `วันที่ ${d.n} · ${d.t}`;
+
+            const ids = n === 0 ? d.show : [...new Set([...d.route, ...d.extra])];
+            ids.forEach((id, i) => addMarker(id, i * 140));
+            const all = [...new Set([...ids, ...d.route])].map(i => [P[i][1], P[i][2]]);
+            map.flyToBounds(L.latLngBounds(all), { padding: [50, 50], duration: 1.1, maxZoom: n === 0 ? 7 : 13, animate: !instant });
+
+            const my = token;
+            setTimeout(() => { if (my === token) animateRoute(d.route, d.modes, n === 0 ? "#ffc247" : "#E05A2B"); }, 600);
+
+            $$(".tab").forEach(t => t.classList.toggle("on", +t.dataset.n === n));
+            $$(".day-card").forEach(c => c.classList.toggle("active", +c.dataset.day === n));
+            const on = $(".tab.on");
+            if (on) on.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initMap();
+
+            const tabs = $("#tabs");
+            const mk = (n, label) => {
+                const b = document.createElement("button");
+                b.className = "tab"; b.type = "button"; b.dataset.n = n; b.textContent = label;
+                b.setAttribute("role", "tab");
+                b.addEventListener("click", () => show(n));
+                tabs.appendChild(b);
+            };
+            mk(0, "ทั้งหมด");
+            DAYS.forEach(d => mk(d.n, "D" + d.n));
+
+            $$(".day-card").forEach((c, i) => {
+                c.dataset.day = i + 1;
+                const h3 = c.querySelector("h3");
+                if (h3) {
+                    const badge = document.createElement("span");
+                    badge.className = "day-num"; badge.textContent = i + 1;
+                    const wrap = document.createElement("div");
+                    wrap.style.cssText = "display:flex;align-items:center";
+                    h3.parentNode.insertBefore(wrap, h3);
+                    wrap.appendChild(badge);
+                    wrap.appendChild(h3);
+                }
+                c.addEventListener("click", e => {
+                    if (e.target.closest("a")) return;
+                    show(i + 1);
+                });
+            });
+
+            $("#replay").addEventListener("click", () => show(current));
+            show(0, true);
+            // ให้ Leaflet คำนวณขนาดใหม่หลังจัดเลย์เอาต์เสร็จ (กันแผนที่ขาว/ไทล์ไม่ครบ)
+            setTimeout(() => map.invalidateSize(), 200);
+            window.addEventListener("resize", () => map.invalidateSize());
+        });
+    })();
+    </script>
+</body>
+</html>
